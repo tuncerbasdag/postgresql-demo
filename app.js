@@ -6,12 +6,14 @@ const app = express();
 app.use(express.json());
 app.use(router);
 
-// db.sync()
-//   .then(() => {
-//     console.log('Synced db.');
-//   })
-//   .catch((err) => {
-//     console.log('Failed to sync db: ' + err);
-//   });
+app.all('*', (req, res, next) => {
+  res.status(400).json({
+    message: `Can't find ${req.originalUrl} on this server!`,
+  });
+});
+
+app.use((err, req, res, next) => {
+  res.status(500).json({ message: 'Something broke!' });
+});
 
 app.listen(8000);

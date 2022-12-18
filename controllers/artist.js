@@ -1,3 +1,4 @@
+const redis = require('../services/cache');
 const Album = require('../models/album');
 const Artist = require('../models/artist');
 
@@ -6,7 +7,6 @@ Artist.hasMany(Album, {
 });
 
 const createArtist = async (req, res, next) => {
-  console.log(req.body);
   Artist.create({
     name: req.body.name,
   })
@@ -15,10 +15,10 @@ const createArtist = async (req, res, next) => {
     })
     .catch((err) => {
       res.status(400).json({
-        msg: err.errors.map((error) => {
+        message: err.errors.map((error) => {
           return {
             field: error.path,
-            msg: error.message,
+            message: error.message,
           };
         }),
       });
@@ -28,15 +28,23 @@ const createArtist = async (req, res, next) => {
 const getArtistById = async (req, res, next) => {
   const { id } = req.params;
 
-  Artist.findByPk(id, {
+  const cacheKey = `artist-${id}`;
+  const cachedData = await redis.get(cacheKey);
+
+  if (cachedData) {
+    return res.json(cachedData);
+  }
+
+  const artist = await Artist.findByPk(id, {
     include: [Album],
-  }).then((artists) => {
-    if (artists) {
-      res.json(artists);
-    } else {
-      res.status(404).json({});
-    }
   });
+
+  if (artist) {
+    await redis.set(cacheKey, artist);
+    res.json(artist);
+  } else {
+    res.status(404).json({});
+  }
 };
 
 const deleteArtistById = async (req, res, next) => {
@@ -44,12 +52,12 @@ const deleteArtistById = async (req, res, next) => {
   Artist.findByPk(id)
     .then((artist) => {
       artist.destroy().then(() => {
-        res.json({ msg: 'Artist deleted' });
+        res.json({ message: 'Artist deleted' });
       });
       res.json(artist);
     })
     .catch((err) => {
-      res.json({ msg: 'artist was not deleted', err });
+      res.json({ message: 'artist was not deleted', err });
     });
 };
 

@@ -1,4 +1,6 @@
 const { Sequelize } = require('sequelize');
+const redis = require('../services/cache');
+
 const Playlist = require('../models/playlist');
 const Track = require('../models/track');
 
@@ -12,33 +14,54 @@ Playlist.belongsToMany(Track, {
 
 const getAllPlaylists = async (req, res, next) => {
   let filter = {};
-  let { q } = req.query;
-  if (q) {
+  let query = req.query.q || null;
+  if (query) {
     filter = {
       where: {
         name: {
-          [Op.like]: `${q}%`,
+          [Op.like]: `${query}%`,
         },
       },
     };
   }
-  Playlist.findAll(filter).then((playlist) => {
-    res.json(playlist);
-  });
+
+  const cacheKey = `playlists-q=${query}`;
+  const cachedData = await redis.get(cacheKey);
+
+  if (cachedData) {
+    return res.json(cachedData);
+  }
+
+  const playlists = await Playlist.findAll(filter);
+
+  if (playlists) {
+    await redis.set(cacheKey, playlists);
+    res.json(playlists);
+  } else {
+    res.status(404).json({});
+  }
 };
 
 const getPlaylistById = async (req, res, next) => {
   const { id } = req.params;
 
-  Playlist.findByPk(id, {
+  const cacheKey = `playlist-${id}`;
+  const cachedData = await redis.get(cacheKey);
+
+  if (cachedData) {
+    return res.json(cachedData);
+  }
+
+  const playlist = await Playlist.findByPk(id, {
     include: [Track],
-  }).then((playlist) => {
-    if (playlist) {
-      res.json(playlist);
-    } else {
-      res.status(404).json({});
-    }
   });
+
+  if (playlist) {
+    await redis.set(cacheKey, playlist);
+    res.json(playlist);
+  } else {
+    res.status(404).json({});
+  }
 };
 
 module.exports = {
