@@ -5,7 +5,7 @@ module.exports = {
     host: process.env.POSTGRES_HOST,
     user: process.env.POSTGRES_USER,
     password: process.env.POSTGRES_PASSWORD,
-    dbName: process.env.POSTGRES_DB,
+    name: process.env.POSTGRES_DB,
     dialect: 'postgres',
     pool: {
       max: 5,
